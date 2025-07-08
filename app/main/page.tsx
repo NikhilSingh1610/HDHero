@@ -2,22 +2,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+
+interface CartItem {
+  id: string;
+  name: string;
+  image: string;
+  price: number;
+  quantity: number;
+}
 
 export default function MainPage() {
   const [user, setUser] = useState<User | null>(null);
   const [showQuickOrder, setShowQuickOrder] = useState(false);
+  const [cart, setCart] = useState<CartItem[]>([]);
   const router = useRouter();
+
+  const foodItems = [
+    { id: "1", name: "Burger", image: "/burger.png", emoji: "", price: 50 },
+    { id: "2", name: "Pizza", image: "/pizza.png", emoji: "", price: 80 },
+    { id: "3", name: "Ice Cream", image: "/icecream.png", emoji: "", price: 30 },
+    { id: "4", name: "Chinese", image: "/chinese.png", emoji: "", price: 70 },
+    { id: "5", name: "Rolls", image: "/rolls.png", emoji: "", price: 60 },
+    { id: "6", name: "Cake", image: "/cake.png", emoji: "", price: 400 },
+    { id: "7", name: "Momos", image: "/momo.png", emoji: "", price: 50 },
+    { id: "8", name: "Sandwich", image: "/sandwich.png", emoji: "", price: 40 }
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
+        const savedCart = localStorage.getItem('cart');
+        if (savedCart) {
+          setCart(JSON.parse(savedCart));
+        }
       } else {
         router.push("/signup");
       }
@@ -30,18 +54,53 @@ export default function MainPage() {
     router.push("/signup");
   };
 
-  if (!user) return null;
+  const addToCart = (item: typeof foodItems[0]) => {
+    setCart(prevCart => {
+      const existingItem = prevCart.find(cartItem => cartItem.id === item.id);
+      let newCart;
+      
+      if (existingItem) {
+        newCart = prevCart.map(cartItem =>
+          cartItem.id === item.id 
+            ? { ...cartItem, quantity: cartItem.quantity + 1 } 
+            : cartItem
+        );
+      } else {
+        newCart = [...prevCart, { 
+          id: item.id, 
+          name: item.name, 
+          image: item.image, 
+          price: item.price, 
+          quantity: 1 
+        }];
+      }
 
-  const foodItems = [
-    { name: "Burger", image: "/burger.png", emoji: "" },
-    { name: "Pizza", image: "/pizza.png", emoji: "" },
-    { name: "Ice Cream", image: "/icecream.png", emoji: "" },
-    { name: "Chinese", image: "/chinese.png", emoji: "" },
-    { name: "Rolls", image: "/rolls.png", emoji: "" },
-    { name: "Cake", image: "/cake.png", emoji: "" },
-    { name: "Momos", image: "/momo.png", emoji: "" },
-    { name: "Sandwich", image: "/sandwich.png", emoji: "" }
-  ];
+      localStorage.setItem('cart', JSON.stringify(newCart));
+      return newCart;
+    });
+  };
+
+  const updateQuantity = (itemId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      setCart(prevCart => {
+        const newCart = prevCart.filter(item => item.id !== itemId);
+        localStorage.setItem('cart', JSON.stringify(newCart));
+        return newCart;
+      });
+    } else {
+      setCart(prevCart => {
+        const newCart = prevCart.map(item =>
+          item.id === itemId ? { ...item, quantity: newQuantity } : item
+        );
+        localStorage.setItem('cart', JSON.stringify(newCart));
+        return newCart;
+      });
+    }
+  };
+
+  const cartItemCount = cart.reduce((total, item) => total + item.quantity, 0);
+
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-50 via-red-200 to-blue-100 animate-gradient-x flex flex-col items-center overflow-x-hidden relative">
@@ -96,6 +155,24 @@ export default function MainPage() {
           <Link href="/profile" className="text-sm font-semibold text-gray-700 hover:text-black transition">
             My Profile
           </Link>
+          
+          {/* Cart Button */}
+          <motion.button 
+            onClick={() => router.push('/cart')}
+            className="relative p-2 rounded-full hover:bg-gray-100"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                {cartItemCount}
+              </span>
+            )}
+          </motion.button>
+          
           <motion.button 
             onClick={handleLogout} 
             className="bg-red-500 text-white px-4 py-2 rounded-full text-sm hover:bg-red-600"
@@ -131,7 +208,7 @@ export default function MainPage() {
             What would you like to order today?
           </p>
           <motion.div
-            className="mt-6"
+            className="mt-6 flex gap-4"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5 }}
@@ -147,6 +224,17 @@ export default function MainPage() {
             >
               🚀 Quick Order
             </motion.button>
+            <motion.button
+              className="bg-white text-red-500 border border-red-500 px-6 py-3 rounded-full font-bold shadow-lg"
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0 10px 20px rgba(239, 68, 68, 0.1)"
+              }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => router.push('/cart')}
+            >
+              🛒 View Cart ({cartItemCount})
+            </motion.button>
           </motion.div>
         </div>
         <motion.div
@@ -155,7 +243,6 @@ export default function MainPage() {
             y: [0, -10, 0],
             rotate: [0, 0, 0, 0]
           }}
-          
           transition={{ 
             duration: 4, 
             repeat: Infinity, 
@@ -195,44 +282,77 @@ export default function MainPage() {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-              {foodItems.slice(0, 8).map((item) => (
-                <motion.div
-                  key={item.name}
-                  whileHover={{ y: -5 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center"
-                >
-                  <Image
-                    src={item.image}
-                    alt={item.name}
-                    width={80}
-                    height={80}
-                    className="w-20 h-20 object-contain"
-                  />
-                  <h3 className="font-medium mt-2 text-center">{item.name}</h3>
-                  <div className="flex items-center mt-3 space-x-2">
-                    <button className="p-1 bg-gray-100 rounded-full">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
+              {foodItems.slice(0, 8).map((item) => {
+                const cartItem = cart.find(cartItem => cartItem.id === item.id);
+                const itemQuantity = cartItem?.quantity || 0;
+                
+                return (
+                  <motion.div
+                    key={item.id}
+                    whileHover={{ y: -5 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center"
+                  >
+                    <Image
+                      src={item.image}
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      className="w-20 h-20 object-contain"
+                    />
+                    <h3 className="font-medium mt-2 text-center">{item.name}</h3>
+                    <p className="text-red-500 font-bold mt-1">{item.price.toFixed(2)}</p>
+                    <div className="flex items-center mt-3 space-x-2">
+                      <button 
+                        className="p-1 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+                        onClick={() => updateQuantity(item.id, itemQuantity - 1)}
+                        disabled={itemQuantity === 0}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                        </svg>
+                      </button>
+                      <span className="w-6 text-center">{itemQuantity}</span>
+                      <button 
+                        className="p-1 bg-gray-100 rounded-full hover:bg-gray-200 transition"
+                        onClick={() => addToCart(item)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </button>
+                    </div>
+                    <button 
+                      className={`mt-3 px-4 py-1 rounded-full text-sm transition ${
+                        itemQuantity > 0 
+                          ? 'bg-green-500 text-white hover:bg-green-600' 
+                          : 'bg-red-500 text-white hover:bg-red-600'
+                      }`}
+                      onClick={() => addToCart(item)}
+                    >
+                      {itemQuantity > 0 ? 'Add More' : 'Add to Cart'}
                     </button>
-                    <span>1</span>
-                    <button className="p-1 bg-gray-100 rounded-full">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    </button>
-                  </div>
-                  <button className="mt-3 bg-red-500 text-white px-4 py-1 rounded-full text-sm hover:bg-red-600 transition">
-                    Add to Cart
-                  </button>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
 
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg">
-              <button className="w-full bg-gradient-to-r from-red-500 to-orange-500 text-white py-3 rounded-xl font-bold">
-                Proceed to Checkout (3 items)
+              <button 
+                className={`w-full py-3 rounded-xl font-bold ${
+                  cartItemCount > 0
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                onClick={() => {
+                  setShowQuickOrder(false);
+                  if (cartItemCount > 0) router.push('/cart');
+                }}
+                disabled={cartItemCount === 0}
+              >
+                {cartItemCount > 0 
+                  ? `Proceed to Checkout (${cartItemCount} ${cartItemCount === 1 ? 'item' : 'items'})`
+                  : 'Add items to continue'}
               </button>
             </div>
           </div>
@@ -390,13 +510,18 @@ export default function MainPage() {
             🏠
           </motion.div>
         </Link>
-        <Link href="/profile" className="flex flex-col items-center">
+        <Link href="/cart" className="flex flex-col items-center">
           <motion.div
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            className="text-gray-600"
+            className="text-gray-600 relative"
           >
-            👤
+            🛒
+            {cartItemCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                {cartItemCount}
+              </span>
+            )}
           </motion.div>
         </Link>
         <button onClick={handleLogout} className="flex flex-col items-center">
@@ -430,11 +555,15 @@ export default function MainPage() {
                 Company
               </h3>
               <ul className="space-y-3">
-                {["About Us", "Team", "Minis", "Pyng"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-gray-600 hover:text-red-500 transition flex items-center group">
+                {[
+                  { name: "About Us", href: "/about" },
+                  { name: "Team", href: "/team" },
+                  
+                ].map((item) => (
+                  <li key={item.name}>
+                    <Link href={item.href} className="text-gray-600 hover:text-red-500 transition flex items-center group">
                       <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
-                      {item}
+                      {item.name}
                     </Link>
                   </li>
                 ))}
@@ -451,11 +580,15 @@ export default function MainPage() {
                 Contact us
               </h3>
               <ul className="space-y-3">
-                {["Help & Support", "Partner with us", "Ride with us"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-gray-600 hover:text-red-500 transition flex items-center group">
+                {[
+                  { name: "Help & Support", href: "/help" },
+                  { name: "Partner with us", href: "#" },
+                  { name: "Ride with us", href: "#" }
+                ].map((item) => (
+                  <li key={item.name}>
+                    <Link href={item.href} className="text-gray-600 hover:text-red-500 transition flex items-center group">
                       <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
-                      {item}
+                      {item.name}
                     </Link>
                   </li>
                 ))}
@@ -472,14 +605,24 @@ export default function MainPage() {
                 Legal
               </h3>
               <ul className="space-y-3">
-                {["Terms & Conditions", "Cookie Policy", "Privacy Policy"].map((item) => (
-                  <li key={item}>
-                    <Link href="#" className="text-gray-600 hover:text-red-500 transition flex items-center group">
-                      <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
-                      {item}
-                    </Link>
-                  </li>
-                ))}
+                <li>
+                  <Link href="/terms" className="text-gray-600 hover:text-red-500 transition flex items-center group">
+                    <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
+                    Terms & Conditions
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/cookies" className="text-gray-600 hover:text-red-500 transition flex items-center group">
+                    <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
+                    Cookie Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/privacy" className="text-gray-600 hover:text-red-500 transition flex items-center group">
+                    <span className="w-1 h-1 bg-gray-400 rounded-full mr-2 group-hover:bg-red-500"></span>
+                    Privacy Policy
+                  </Link>
+                </li>
               </ul>
             </motion.div>
 
@@ -533,31 +676,21 @@ export default function MainPage() {
               </span>
             </div>
             
-            {/* Additional Links */}
-            <div className="flex flex-wrap justify-center gap-4">
-              {["Privacy Policy", "Terms of Service", "Sitemap", "FAQ"].map((item) => (
-                <Link 
-                  key={item} 
-                  href="#" 
-                  className="text-gray-500 hover:text-red-500 text-sm transition"
-                >
-                  {item}
-                </Link>
-              ))}
-            </div>
             
-            {/* Payment Methods */}
-            {/* <div className="flex space-x-3 mt-4 md:mt-0">
-              {["💳", "📱", "💰", "🔄"].map((method, i) => (
-                <motion.div
-                  key={i}
-                  className="bg-white p-2 rounded-md shadow-xs"
-                  whileHover={{ y: -2 }}
-                >
-                  {method}
-                </motion.div>
-              ))}
-            </div> */}
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/privacy" className="text-gray-500 hover:text-red-500 text-sm transition">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="text-gray-500 hover:text-red-500 text-sm transition">
+                Terms of Service
+              </Link>
+              <Link href="#" className="text-gray-500 hover:text-red-500 text-sm transition">
+                Sitemap
+              </Link>
+              <Link href="#" className="text-gray-500 hover:text-red-500 text-sm transition">
+                FAQ
+              </Link>
+            </div>
           </div>
         </div>
       </motion.footer>

@@ -44,7 +44,7 @@ export default function HeroSection() {
             Order Ahead!
           </h1>
           <p className="text-gray-600 mt-4 text-lg">
-            Skip The line, Grab On Time!!
+            Skip The line, Grab On Time!
           </p>
           <div className="flex flex-col sm:flex-row items-center mt-6 gap-3">
             <Link href="/signup">
